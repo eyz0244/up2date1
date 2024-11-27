@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context"; // Import SafeAreaProvider
@@ -6,18 +6,40 @@ import { Ionicons } from "@expo/vector-icons"; // Import Ionicons for icons
 import ModalComponent from "./components/ModalComponent";
 import Page1 from "./screens/Page1";
 import Page2 from "./screens/Page2";
+import { UserProvider, UserContext } from "./UserContext";
 
 const Tab = createBottomTabNavigator();
-import { UserProvider } from "./UserContext";
 
 export default function App() {
+  return (
+    <UserProvider>
+      <MainApp />
+    </UserProvider>
+  );
+}
+
+function MainApp() {
+  const { isLoggedIn, login, logout } = useContext(UserContext);
   const [modalVisible, setModalVisible] = useState(false);
+
   const toggleModal = () => setModalVisible(!modalVisible);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setModalVisible(true); // Show login modal if user is not logged in
+    } else {
+      setModalVisible(false); // Hide login modal when user logs in
+    }
+  }, [isLoggedIn]);
 
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <ModalComponent visible={modalVisible} toggleModal={toggleModal} />
+        <ModalComponent
+          visible={modalVisible}
+          toggleModal={toggleModal}
+          onLogin={login} // Pass login function to ModalComponent
+        />
         <Tab.Navigator>
           <Tab.Screen
             name="Home"
@@ -33,6 +55,7 @@ export default function App() {
                 {...props}
                 toggleModal={toggleModal}
                 modalVisible={modalVisible}
+                onLogout={logout} // Pass logout function to Page1
               />
             )}
           </Tab.Screen>
@@ -50,6 +73,7 @@ export default function App() {
                 {...props}
                 toggleModal={toggleModal}
                 modalVisible={modalVisible}
+                onLogout={logout} // Pass logout function to Page2
               />
             )}
           </Tab.Screen>
