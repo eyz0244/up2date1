@@ -1,33 +1,40 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import {
-  View,
-  FlatList,
   SafeAreaView,
-  Button,
+  View,
   Text,
+  Button,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
-  StyleSheet,
+  TextInput,
   Animated,
   Dimensions,
+  Modal,
+  StyleSheet,
   TouchableWithoutFeedback,
   PanResponder,
 } from "react-native";
 import { styles } from "../styles";
-import UserIcon from "../components/UserIcon";
-import { UserContext } from "../UserContext"; // Import UserContext for session handling
+import { UserContext } from "../UserContext"; // Import UserContext
+import { getUserData, addUserTopic, signUpUser } from "../services/firebaseService"; // Import Firestore functions
 
 const { width } = Dimensions.get("window");
 
 const Page2 = ({ route, navigation }) => {
   const query = route.params?.query || "";
-  const setQueriesList = route.params?.setQueriesList || (() => {});
   const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [topics, setTopics] = useState([]); // Store topics fetched from Firestore
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width)).current;
+  const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [newTopic, setNewTopic] = useState("");
 
+  const slideAnim = useRef(new Animated.Value(-width)).current;
   const { isLoggedIn, login, logout } = useContext(UserContext); // Use UserContext
 
   const panResponder = useRef(
@@ -73,53 +80,67 @@ const Page2 = ({ route, navigation }) => {
     }
   };
 
-  const handleAddToPage1 = () => {
-    setQueriesList((prevList) => {
-      if (!prevList.includes(query.trim()) && query.trim()) {
-        return [...prevList, query];
-      }
-      return prevList;
-    });
+  const handleAddTopic = async () => {
+    if (newTopic.trim()) {
+      await addUserTopic("user-id", newTopic); // Replace "user-id" with the logged-in user's ID
+      setTopics([...topics, newTopic]); // Update local state
+      setNewTopic("");
+    }
+  };
+
+  const fetchTopics = async () => {
+    const userData = await getUserData("user-id"); // Replace "user-id" with the logged-in user's ID
+    if (userData && userData.topics) {
+      setTopics(userData.topics);
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!email) {
+      setEmailError("Email is required");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Password is required");
+      return;
+    }
+    try {
+      await signUpUser(email, password);
+      setIsAuthModalVisible(false);
+      setEmail("");
+      setPassword("");
+      fetchTopics();
+    } catch (error) {
+      console.error("Signup error:", error);
+    }
   };
 
   useEffect(() => {
+    if (isLoggedIn) {
+      fetchTopics();
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const fetchArticles = async () => {
+      try {
+        const response = await fetch(
+          `https://newsapi.org/v2/everything?q=${query}&apiKey=a7897f3ce6634dd7bbc7cb35f3ebf7c2`
+        );
+        const data = await response.json();
+        setArticles(data.articles);
+      } catch (error) {
+        console.error("Error fetching articles:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     if (query) {
-      const fetchArticles = async () => {
-        try {
-          const response = await fetch(
-            `https://newsapi.org/v2/everything?q=${query}&apiKey=a7897f3ce6634dd7bbc7cb35f3ebf7c2`
-          );
-          const data = await response.json();
-          const filteredArticles = data.articles.filter(
-            (article) => article.title !== "[Removed]"
-          );
-
-          filteredArticles.sort(
-            (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)
-          );
-
-          setArticles(filteredArticles);
-        } catch (error) {
-          console.error("Error fetching articles:", error);
-        } finally {
-          setLoading(false);
-        }
-      };
       fetchArticles();
     } else {
       setLoading(false);
     }
   }, [query]);
-
-  if (!isLoggedIn) {
-    // If the user is not logged in, redirect or show a login required message
-    return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <Text style={styles.loginRequiredText}>You must log in to view this page.</Text>
-        <Button title="Login" onPress={login} />
-      </SafeAreaView>
-    );
-  }
 
   return loading ? (
     <ActivityIndicator size="large" />
@@ -136,13 +157,13 @@ const Page2 = ({ route, navigation }) => {
           localStyles.slidingMenu,
           {
             transform: [{ translateX: slideAnim }],
-            zIndex: 1000, // Ensure the sliding menu stays above other content
+            zIndex: 1000,
           },
         ]}
         {...panResponder.panHandlers}
       >
         <View style={localStyles.menuContent}>
-          <TouchableOpacity onPress={isLoggedIn ? logout : login}>
+          <TouchableOpacity onPress={() => setIsAuthModalVisible(true)}>
             <Text style={localStyles.menuText}>
               {isLoggedIn ? "Log Out" : "Sign-Up / Login"}
             </Text>
@@ -151,80 +172,111 @@ const Page2 = ({ route, navigation }) => {
         </View>
       </Animated.View>
 
-      {/* Main Content */}
-      <UserIcon
-        onPress={toggleMenu}
-        style={{ zIndex: isMenuVisible ? 0 : 10 }}
-      />
+      {/* Auth Modal */}
+      <Modal
+        visible={isAuthModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsAuthModalVisible(false)}
+      >
+        <View style={localStyles.modalContainer}>
+          <View style={localStyles.modalContent}>
+            <Text style={localStyles.modalTitle}>Sign-Up / Login</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {emailError && <Text style={localStyles.errorText}>{emailError}</Text>}
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            {passwordError && <Text style={localStyles.errorText}>{passwordError}</Text>}
+            <View style={localStyles.modalButtons}>
+              <Button title="Sign Up" onPress={handleSignUp} />
+              <Button
+                title="Cancel"
+                color="red"
+                onPress={() => setIsAuthModalVisible(false)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Text style={styles.titlePage2}>Results for: {query}</Text>
 
-      <View style={localStyles.buttonRow}>
-        <View style={localStyles.button}>
-          <Button title="Home" onPress={() => navigation.navigate("Home")} />
-        </View>
-        <View style={localStyles.button}>
-          <Button title="Add Topic" onPress={handleAddToPage1} />
-        </View>
+      <View>
+        <Text style={styles.title}>Your Topics</Text>
+        <FlatList
+          data={topics}
+          renderItem={({ item }) => <Text style={localStyles.topic}>{item}</Text>}
+          keyExtractor={(item, index) => `${item}-${index}`}
+        />
       </View>
 
-      {articles.length > 0 ? (
-        <FlatList
-          data={articles}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.itemContainer}
-              onPress={() => Linking.openURL(item.url)}
-            >
-              <Text style={styles.itemTitle}>{item.title}</Text>
-              <Text style={styles.itemDescription}>{item.description}</Text>
-              <Text style={styles.itemSource}>
-                {item.source.name} -{" "}
-                {new Date(item.publishedAt).toLocaleDateString()}
-              </Text>
-            </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item.url}
-        />
-      ) : (
-        <Text style={styles.noResultsText}>
-          No articles found for this query.
-        </Text>
-      )}
+      <TextInput
+        value={newTopic}
+        onChangeText={setNewTopic}
+        placeholder="Add a new topic"
+        style={styles.input}
+      />
+      <Button title="Add Topic" onPress={handleAddTopic} />
+
+      <FlatList
+        data={articles}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(item.url)}
+            style={styles.itemContainer}
+          >
+            <Text style={styles.itemTitle}>{item.title}</Text>
+            <Text style={styles.itemDescription}>{item.description}</Text>
+          </TouchableOpacity>
+        )}
+        keyExtractor={(item) => item.url}
+      />
     </SafeAreaView>
   );
 };
 
 const localStyles = StyleSheet.create({
-  buttonRow: {
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 10,
+    width: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalButtons: {
+    marginTop: 20,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 10,
-    width: "100%",
-    alignSelf: "center",
-  },
-  button: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
-  slidingMenu: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: width * 0.75,
-    height: "100%",
-    backgroundColor: "#f2f2f2",
-    zIndex: 1000,
-    paddingTop: 20,
   },
   overlay: {
     position: "absolute",
     top: 0,
     left: 0,
-    width,
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    zIndex: 999,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: 5,
   },
   menuContent: {
     padding: 20,
@@ -232,6 +284,13 @@ const localStyles = StyleSheet.create({
   menuText: {
     fontSize: 18,
     marginBottom: 20,
+  },
+  topic: {
+    fontSize: 16,
+    padding: 10,
+    backgroundColor: "#f0f0f0",
+    marginBottom: 5,
+    borderRadius: 5,
   },
 });
 

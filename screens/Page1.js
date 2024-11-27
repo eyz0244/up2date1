@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext } from "react";
+import React, { useState, useRef, useContext, useEffect } from "react";
 import {
   SafeAreaView,
   View,
@@ -18,17 +18,23 @@ import {
 import Banner from "../components/tmp";
 import { styles } from "../styles";
 import UserIcon from "../components/UserIcon";
-import { UserContext } from "../UserContext"; // Import UserContext for session handling
+import { UserContext } from "../UserContext"; // Import UserContext
+import { getUserData, addUserTopic, signUpUser } from "../services/firebaseService"; // Import Firestore functions
 
 const { width } = Dimensions.get("window");
 
 const Page1 = ({ navigation }) => {
   const [query, setQuery] = useState("");
-  const [queriesList, setQueriesList] = useState([]);
+  const [topics, setTopics] = useState([]); // Store topics fetched from Firestore
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-width)).current;
+  const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
-  const { isLoggedIn, login, logout } = useContext(UserContext); // Use UserContext
+  const slideAnim = useRef(new Animated.Value(-width)).current;
+  const { isLoggedIn, login, logout } = useContext(UserContext);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -73,23 +79,47 @@ const Page1 = ({ navigation }) => {
     }
   };
 
-  const handleAddTopic = () => {
-    if (query.trim() && !queriesList.includes(query)) {
-      setQueriesList([...queriesList, query]);
+  const handleAddTopic = async () => {
+    if (query.trim()) {
+      await addUserTopic("user-id", query); // Replace "user-id" with the logged-in user's ID
+      setTopics([...topics, query]); // Update local state
       setQuery("");
       Keyboard.dismiss();
     }
   };
 
-  const handleSearch = () => {
-    if (query.trim()) {
-      navigation.navigate("News", { query, setQueriesList });
+  const fetchTopics = async () => {
+    const userData = await getUserData("user-id"); // Replace "user-id" with the logged-in user's ID
+    if (userData && userData.topics) {
+      setTopics(userData.topics);
     }
   };
 
-  const removeQuery = (itemToRemove) => {
-    setQueriesList(queriesList.filter((item) => item !== itemToRemove));
+  const handleSignUp = async () => {
+    if (!email) {
+      setEmailError("Email is required");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Password is required");
+      return;
+    }
+    try {
+      await signUpUser(email, password);
+      setIsAuthModalVisible(false);
+      setEmail("");
+      setPassword("");
+      fetchTopics();
+    } catch (error) {
+      console.error("Signup error:", error);
+    }
   };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchTopics();
+    }
+  }, [isLoggedIn]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -108,7 +138,7 @@ const Page1 = ({ navigation }) => {
         {...panResponder.panHandlers}
       >
         <View style={localStyles.menuContent}>
-          <TouchableOpacity onPress={isLoggedIn ? logout : login}>
+          <TouchableOpacity onPress={() => setIsAuthModalVisible(true)}>
             <Text style={localStyles.menuText}>
               {isLoggedIn ? "Log Out" : "Sign-Up / Login"}
             </Text>
@@ -116,6 +146,44 @@ const Page1 = ({ navigation }) => {
           <Text style={localStyles.menuText}>Settings</Text>
         </View>
       </Animated.View>
+
+      <Modal
+        visible={isAuthModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsAuthModalVisible(false)}
+      >
+        <View style={localStyles.modalContainer}>
+          <View style={localStyles.modalContent}>
+            <Text style={localStyles.modalTitle}>Sign-Up / Login</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {emailError && <Text style={localStyles.errorText}>{emailError}</Text>}
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            {passwordError && <Text style={localStyles.errorText}>{passwordError}</Text>}
+            <View style={localStyles.modalButtons}>
+              <Button title="Sign Up" onPress={handleSignUp} />
+              <Button
+                title="Cancel"
+                color="red"
+                onPress={() => setIsAuthModalVisible(false)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <UserIcon onPress={toggleMenu} />
       <Banner />
@@ -126,38 +194,19 @@ const Page1 = ({ navigation }) => {
           placeholder="Topic"
           style={[styles.input, localStyles.searchInput]}
         />
-        <View style={localStyles.buttonContainer}>
-          <Button title="Search" onPress={handleSearch} />
-        </View>
+        <Button title="Add Topic" onPress={handleAddTopic} />
       </View>
 
-      <Button title="Add Topic" onPress={handleAddTopic} />
-
-      <View style={localStyles.tableContainer}>
-        <FlatList
-          data={queriesList}
-          renderItem={({ item }) => (
-            <View style={localStyles.tableRow}>
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate("News", { query: item, setQueriesList })
-                }
-                style={localStyles.queryContainer}
-              >
-                <Text style={localStyles.tableText}>{item}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => removeQuery(item)}
-                style={localStyles.removeButton}
-              >
-                <Text style={localStyles.removeText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          keyExtractor={(item, index) => `${item}-${index}`}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      </View>
+      <FlatList
+        data={topics}
+        renderItem={({ item }) => (
+          <View style={localStyles.tableRow}>
+            <Text style={localStyles.tableText}>{item}</Text>
+          </View>
+        )}
+        keyExtractor={(item, index) => `${item}-${index}`}
+        contentContainerStyle={{ paddingBottom: 20 }}
+      />
     </SafeAreaView>
   );
 };
@@ -168,6 +217,21 @@ const localStyles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 10,
+    width: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalButtons: {
+    marginTop: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   overlay: {
     position: "absolute",
@@ -201,53 +265,26 @@ const localStyles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
   },
   searchInput: {
-    width: "75%",
-  },
-  buttonContainer: {
-    marginLeft: 10,
-    marginTop: -15.5,
-  },
-  tableContainer: {
     flex: 1,
-    width: "100%",
-    paddingHorizontal: 20,
+    marginRight: 10,
   },
   tableRow: {
     backgroundColor: "#f8f9fa",
     padding: 8,
     marginVertical: 5,
     borderRadius: 5,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
-  },
-  queryContainer: {
-    flex: 0.75,
-    backgroundColor: "lightgray",
   },
   tableText: {
     fontSize: 16,
-    textAlign: "left",
   },
-  removeButton: {
-    flex: 0.25,
-    alignItems: "flex-end",
-  },
-  removeText: {
+  errorText: {
     color: "red",
-    opacity: 1,
-    fontStyle: "italic",
+    fontSize: 12,
   },
 });
 

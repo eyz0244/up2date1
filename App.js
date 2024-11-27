@@ -7,10 +7,24 @@ import ModalComponent from "./components/ModalComponent";
 import Page1 from "./screens/Page1";
 import Page2 from "./screens/Page2";
 import { UserProvider, UserContext } from "./UserContext";
+import { db } from "./firebaseConfig"; // Import Firebase configuration
 
 const Tab = createBottomTabNavigator();
 
 export default function App() {
+  // Test Firebase connection on app start
+  useEffect(() => {
+    const testFirestore = async () => {
+      try {
+        const testQuery = await db.collection("testCollection").get();
+        console.log("Firestore connected. Test data:", testQuery.docs.map((doc) => doc.data()));
+      } catch (error) {
+        console.error("Error connecting to Firestore:", error);
+      }
+    };
+    testFirestore();
+  }, []);
+
   return (
     <UserProvider>
       <MainApp />
