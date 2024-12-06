@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext, useEffect } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   SafeAreaView,
   View,
@@ -13,32 +13,21 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   PanResponder,
-  Modal,
 } from "react-native";
-import Banner from "../components/tmp";
 import { styles } from "../styles";
 import UserIcon from "../components/UserIcon";
-import { UserContext } from "../UserContext"; // Import UserContext
-import {
-  getUserData,
-  addUserTopic,
-  signUpUser,
-} from "../utils/firebaseService"; // Import Firestore functions
+import { addUserTopic, getUserData } from "../firebaseService"; // Firestore functions
+import { UserContext } from "../UserContext"; // User context for auth state
 
 const { width } = Dimensions.get("window");
 
 const Page1 = ({ navigation }) => {
+  const { user } = useContext(UserContext); // Get the current authenticated user
+  const userId = user?.uid; // User ID from Firebase Authentication
   const [query, setQuery] = useState("");
-  const [topics, setTopics] = useState([]); // Store topics fetched from Firestore
+  const [queriesList, setQueriesList] = useState([]);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [isAuthModalVisible, setIsAuthModalVisible] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-
   const slideAnim = useRef(new Animated.Value(-width)).current;
-  const { isLoggedIn, login, logout } = useContext(UserContext);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -83,47 +72,33 @@ const Page1 = ({ navigation }) => {
     }
   };
 
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!userId) return;
+      try {
+        const data = await getUserData(userId);
+        if (data && data.topics) {
+          setQueriesList(data.topics); // Load user's topics
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error.message);
+      }
+    };
+
+    fetchUserData();
+  }, [userId]);
+
   const handleAddTopic = async () => {
-    if (query.trim()) {
-      await addUserTopic("user-id", query); // Replace "user-id" with the logged-in user's ID
-      setTopics([...topics, query]); // Update local state
+    if (!query.trim() || queriesList.includes(query)) return;
+    try {
+      await addUserTopic(userId, query);
+      setQueriesList((prevList) => [...prevList, query]);
       setQuery("");
       Keyboard.dismiss();
-    }
-  };
-
-  const fetchTopics = async () => {
-    const userData = await getUserData("user-id"); // Replace "user-id" with the logged-in user's ID
-    if (userData && userData.topics) {
-      setTopics(userData.topics);
-    }
-  };
-
-  const handleSignUp = async () => {
-    if (!email) {
-      setEmailError("Email is required");
-      return;
-    }
-    if (!password) {
-      setPasswordError("Password is required");
-      return;
-    }
-    try {
-      await signUpUser(email, password);
-      setIsAuthModalVisible(false);
-      setEmail("");
-      setPassword("");
-      fetchTopics();
     } catch (error) {
-      console.error("Signup error:", error);
+      console.error("Error adding topic:", error.message);
     }
   };
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetchTopics();
-    }
-  }, [isLoggedIn]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -142,74 +117,35 @@ const Page1 = ({ navigation }) => {
         {...panResponder.panHandlers}
       >
         <View style={localStyles.menuContent}>
-          <TouchableOpacity onPress={() => setIsAuthModalVisible(true)}>
-            <Text style={localStyles.menuText}>
-              {isLoggedIn ? "Log Out" : "Sign-Up / Login"}
-            </Text>
-          </TouchableOpacity>
+          <Text style={localStyles.menuText}>Welcome, {user?.email}</Text>
           <Text style={localStyles.menuText}>Settings</Text>
         </View>
       </Animated.View>
 
-      <Modal
-        visible={isAuthModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setIsAuthModalVisible(false)}
-      >
-        <View style={localStyles.modalContainer}>
-          <View style={localStyles.modalContent}>
-            <Text style={localStyles.modalTitle}>Sign-Up / Login</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-            {emailError && (
-              <Text style={localStyles.errorText}>{emailError}</Text>
-            )}
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            {passwordError && (
-              <Text style={localStyles.errorText}>{passwordError}</Text>
-            )}
-            <View style={localStyles.modalButtons}>
-              <Button title="Sign Up" onPress={handleSignUp} />
-              <Button
-                title="Cancel"
-                color="red"
-                onPress={() => setIsAuthModalVisible(false)}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <UserIcon onPress={toggleMenu} />
-      <Banner />
       <View style={localStyles.inputContainer}>
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Topic"
+          placeholder="Add a topic"
           style={[styles.input, localStyles.searchInput]}
         />
-        <Button title="Add Topic" onPress={handleAddTopic} />
+        <View style={localStyles.buttonContainer}>
+          <Button title="Add" onPress={handleAddTopic} />
+        </View>
       </View>
 
       <FlatList
-        data={topics}
+        data={queriesList}
         renderItem={({ item }) => (
           <View style={localStyles.tableRow}>
-            <Text style={localStyles.tableText}>{item}</Text>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("Page2", { query: item, setQueriesList })
+              }
+            >
+              <Text style={localStyles.tableText}>{item}</Text>
+            </TouchableOpacity>
           </View>
         )}
         keyExtractor={(item, index) => `${item}-${index}`}
@@ -220,36 +156,6 @@ const Page1 = ({ navigation }) => {
 };
 
 const localStyles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
-    width: "80%",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  modalButtons: {
-    marginTop: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    zIndex: 5,
-  },
   slidingMenu: {
     position: "absolute",
     top: 0,
@@ -273,26 +179,21 @@ const localStyles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
   },
   searchInput: {
-    flex: 1,
-    marginRight: 10,
+    width: "75%",
+  },
+  buttonContainer: {
+    marginLeft: 10,
+    marginTop: -15.5,
   },
   tableRow: {
     backgroundColor: "#f8f9fa",
     padding: 8,
     marginVertical: 5,
     borderRadius: 5,
-  },
-  tableText: {
-    fontSize: 16,
-  },
-  errorText: {
-    color: "red",
-    fontSize: 12,
   },
 });
 
