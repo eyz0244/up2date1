@@ -1,9 +1,25 @@
 // firebaseService.js
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, updateDoc, getDoc, onSnapshot, arrayUnion } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  updateDoc,
+  getDoc,
+  onSnapshot,
+  collection,
+  getDocs,
+  arrayUnion,
+} from "firebase/firestore";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-// Firebase configuration extracted from your google-services.json
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyChz6MsFZyTflzhNruvX1nlIR4mD4BhE3s",
   authDomain: "up2date-6b2f1.firebaseapp.com",
@@ -28,8 +44,8 @@ export const auth = getAuth(app); // Auth instance
 export const saveUserData = async (userId, email) => {
   try {
     await setDoc(doc(db, "users", userId), {
-      email: email,
-      topics: [], // Initialize topics as an empty array
+      email,
+      topics: [], // Initialize with an empty array
     });
     console.log("User data saved successfully!");
   } catch (error) {
@@ -93,6 +109,24 @@ export const subscribeToUserData = (userId, callback) => {
   }
 };
 
+/**
+ * Fetch all documents in the "users" collection.
+ * @returns {Array} - Array of user documents.
+ */
+export const fetchAllUsers = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "users"));
+    const users = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    console.log("All users fetched successfully!");
+    return users;
+  } catch (error) {
+    console.error("Error fetching all users:", error);
+  }
+};
+
 // Authentication Functions
 
 /**
@@ -103,7 +137,11 @@ export const subscribeToUserData = (userId, callback) => {
  */
 export const signUpUser = async (email, password) => {
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const userId = userCredential.user.uid; // Firebase Auth's UID
     await saveUserData(userId, email); // Save user data in Firestore
     console.log("User signed up successfully!");
@@ -122,7 +160,11 @@ export const signUpUser = async (email, password) => {
  */
 export const loginUser = async (email, password) => {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     console.log("User logged in successfully!");
     return userCredential.user;
   } catch (error) {
@@ -142,4 +184,20 @@ export const logoutUser = async () => {
     console.error("Error logging out user:", error);
     throw error;
   }
+};
+
+/**
+ * Sync Firebase Auth state with your app.
+ * @param {function} callback - Function to handle logged-in or logged-out state.
+ */
+export const syncAuthState = (callback) => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      console.log("User is logged in:", user);
+      callback(true, user);
+    } else {
+      console.log("User is logged out.");
+      callback(false, null);
+    }
+  });
 };

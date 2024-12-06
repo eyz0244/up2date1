@@ -1,5 +1,9 @@
 import React, { createContext, useState } from "react";
-import { createSession, validateSession, clearSession } from "./sessionManager";
+import {
+  createSession,
+  validateSession,
+  clearSession,
+} from "./utils/sessionManager";
 
 export const UserContext = createContext();
 

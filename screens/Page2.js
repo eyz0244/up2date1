@@ -17,7 +17,11 @@ import {
 } from "react-native";
 import { styles } from "../styles";
 import { UserContext } from "../UserContext"; // Import UserContext
-import { getUserData, addUserTopic, signUpUser } from "../services/firebaseService"; // Import Firestore functions
+import {
+  getUserData,
+  addUserTopic,
+  signUpUser,
+} from "../utils/firebaseService"; // Import Firestore functions
 
 const { width } = Dimensions.get("window");
 
@@ -190,7 +194,9 @@ const Page2 = ({ route, navigation }) => {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            {emailError && <Text style={localStyles.errorText}>{emailError}</Text>}
+            {emailError && (
+              <Text style={localStyles.errorText}>{emailError}</Text>
+            )}
             <TextInput
               style={styles.input}
               placeholder="Password"
@@ -198,7 +204,9 @@ const Page2 = ({ route, navigation }) => {
               onChangeText={setPassword}
               secureTextEntry
             />
-            {passwordError && <Text style={localStyles.errorText}>{passwordError}</Text>}
+            {passwordError && (
+              <Text style={localStyles.errorText}>{passwordError}</Text>
+            )}
             <View style={localStyles.modalButtons}>
               <Button title="Sign Up" onPress={handleSignUp} />
               <Button
@@ -217,7 +225,9 @@ const Page2 = ({ route, navigation }) => {
         <Text style={styles.title}>Your Topics</Text>
         <FlatList
           data={topics}
-          renderItem={({ item }) => <Text style={localStyles.topic}>{item}</Text>}
+          renderItem={({ item }) => (
+            <Text style={localStyles.topic}>{item}</Text>
+          )}
           keyExtractor={(item, index) => `${item}-${index}`}
         />
       </View>

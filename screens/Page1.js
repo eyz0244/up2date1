@@ -19,7 +19,11 @@ import Banner from "../components/tmp";
 import { styles } from "../styles";
 import UserIcon from "../components/UserIcon";
 import { UserContext } from "../UserContext"; // Import UserContext
-import { getUserData, addUserTopic, signUpUser } from "../services/firebaseService"; // Import Firestore functions
+import {
+  getUserData,
+  addUserTopic,
+  signUpUser,
+} from "../utils/firebaseService"; // Import Firestore functions
 
 const { width } = Dimensions.get("window");
 
@@ -164,7 +168,9 @@ const Page1 = ({ navigation }) => {
               autoCapitalize="none"
               keyboardType="email-address"
             />
-            {emailError && <Text style={localStyles.errorText}>{emailError}</Text>}
+            {emailError && (
+              <Text style={localStyles.errorText}>{emailError}</Text>
+            )}
             <TextInput
               style={styles.input}
               placeholder="Password"
@@ -172,7 +178,9 @@ const Page1 = ({ navigation }) => {
               onChangeText={setPassword}
               secureTextEntry
             />
-            {passwordError && <Text style={localStyles.errorText}>{passwordError}</Text>}
+            {passwordError && (
+              <Text style={localStyles.errorText}>{passwordError}</Text>
+            )}
             <View style={localStyles.modalButtons}>
               <Button title="Sign Up" onPress={handleSignUp} />
               <Button
