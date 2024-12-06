@@ -1,24 +1,23 @@
-// firebaseConfig.js
+// Import the required Firebase modules
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Firebase configuration from your Firebase Console
+// Your Firebase configuration object
 const firebaseConfig = {
-  apiKey: "AIzaSyChz6MsFZyTflzhNruvX1nlIR4mD4BhE3s",
-  authDomain: "up2date-6b2f1.firebaseapp.com",
-  projectId: "up2date-6b2f1",
-  storageBucket: "up2date-6b2f1.firebasestorage.app",
-  messagingSenderId: "70966750261",
-  appId: "1:70966750261:android:0e63f2b0317b213b1e157c",
+  apiKey: "AIzaSyA2qTeA9b-3624x7tWIuxIvFMQNVzPHDJE",
+  authDomain: "up2date1-376f2.firebaseapp.com",
+  projectId: "up2date1-376f2",
+  storageBucket: "up2date1-376f2.appspot.com",
+  messagingSenderId: "504013271723",
+  appId: "1:504013271723:web:f1a7b9001e2810a2023dee",
 };
 
 // Initialize Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore and Auth
-export const db = getFirestore(app); // Firestore instance
-export const auth = getAuth(app); // Auth instance
+// Initialize and export Firebase services
+export const auth = getAuth(app); // Authentication
+export const db = getFirestore(app); // Firestore Database
 
-// Export Firebase app for other uses
 export default app;
